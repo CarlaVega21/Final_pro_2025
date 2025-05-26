@@ -25,4 +25,125 @@ if (!file.exists(archivo)) {
 ```
 Okey, en este punto todo bien, con Rstudio pudimos descargar el archivo y bien, el siguiente problema es que el archivo es de python y como mencionamos tiene pues una estructura no compatible con lo que usualmente ocupamos.
 lo que sigue fué cambiarlo de .py a .csv para poder leerlo.
+```{r}
+#instalar rhdf5 # es para poder leer archivos .h5 desde rstudio
+if (!requireNamespace("BiocManager", quietly = TRUE))
+  install.packages("BiocManager")
 
+BiocManager::install("rhdf5")
+library(rhdf5)#cargar la libreria 
+ruta_archivo <- "C:/Users/clizv/Documents/Descargas_proyecto_genom2025/interaction_networks_20160729to20160827.h5"
+h5ls(ruta_archivo)#después de establecer un objeto con la ruta donde está mi documento que anteriormente descargué, veo que tiene con 
+#h5ls que es como para ver que hay, muy similar a lo que vimos en bash de ls y así 
+#tegno en el archivo (bee_ages, bee_ids, interactions y labels) son una tabla con edades de 2010 individuos y 29 tiempos que son los días que fueron estudiadas
+#están los IDs de cada nidividuo 
+#la interacción que es una matriz 4D que indica la interacción, como veíamos eran 9 diferentes 
+# y las labels son las etiquetas para los 9 tipos de interacción 
+bee_ids <- h5read (ruta_archivo,"bee_ids")
+head(bee_ids)
+bee_ages <- h5read(ruta_archivo,"bee_ages")
+head(bee_ages) #este lo tengo que checar bien porque mencionaban algo en el artículo 
+#de que la edad de la red no tenía que ver con la edad biológica de la abeja sino que tenía relación con el lugar donde estaba geográficamente la abeja dentro de la colmena
+#me salen filas de 6 valores diferentes y en las columnas son los dias que dura el experimento y van del número 31 al 59
+labels <- h5read(ruta_archivo,"labels")
+labels
+#lo que sale que son los 9 diferentes interacciones que se dan son:
+#"proximity_counts","proximity_euclidean","proximity_rbf","velocity_pos_sum","velocity_neg_sum","velocity_pos_mean","velocity_neg_mean","trophallaxis_duration","trophallaxis_counts" 
+#proximidad si estaban a menos de 2 cm de distancia
+#proximidad euclidiana:es la distancia media diaria con la otra abeja 
+#rbf:
+#red de interacción de trofilaxis -intercambio de alimento 
+#muchos procesos de trofilaxis representan un valor alto 
+
+interactions <- h5read(ruta_archivo,"interactions")
+head(interactions)#dice que el vector no se puede ubicar porque tiene un tamaño de 5.2 Gb, esto es porque la matriz es de 4 dimensiones 
+dim(interactions)#aquí dice que es como se especificaba en la página donde se descargan (9,2010,2010,29)
+#los 2010 son las interacciones entre pares de abejas y el 29 es el instante de interacción que viene dividido por días 
+#entonces quiero hacer una matriz de adyacencia que sea del día uno con los pares de abejas
+#ya tengo la libreria cargada
+ruta_archivo
+#voy a cargar los datos que voy a estar usando aquí
+interactions#las interacciones 
+bee_ids#para relacionarlas con las identificaciones de las abejas individuales 
+#por ejemplo 
+tipo <- 1
+tiempo <- 1
+adj_mat <- interactions[tipo,,,tiempo]
+rownames(adj_mat)<- bee_ids
+colnames(adj_mat)<- bee_ids
+write.csv(adj_mat,file = "C:/Users/clizv/Documents/Descargas_proyecto_genom2025/matriz_de_adyacencia_d1_t1.csv",row.names = TRUE)
+head(adj_mat)
+#para hacer una red en igraph 
+library(igraph)
+#voy a ocupar 
+ruta_archivo
+interactions
+bee_ids
+######## a partir de aquí para hacer la otra red del último día y ver como cambió con el tiempo 
+graf_1_1 <- graph_from_adjacency_matrix(adj_mat,mode = "directed",weighted = TRUE, diag = FALSE)
+graf_1_1
+deg <- degree(graf_1_1,mode = "out")
+deg
+coladito <- V(graf_1_1)[deg>25]
+graf_1_1_coladito <- induced_subgraph(graf_1_1,coladito)
+primero <- plot(graf_1_1_coladito,
+     vertex.label =NA,
+     vertex.size =3,
+     edge.arrow.size =0.2,
+     layout =layout_with_fr,
+     main= "Red de interacciones del tipo 1 en el día 1")
+primero
+#para verla en cytoscape
+write_graph(graf_1_1_coladito,file= "C:/Users/clizv/Documents/Descargas_proyecto_genom2025/network1_1.graphml",format="graphml")
+#calcular degree para ver cuántas conexiones hay en cada nodo 
+out_degree1 <- degree (graf_1_1_coladito,mode = "out")
+out_degree1
+in_degree1 <- degree (graf_1_1_coladito,mode = "in")
+in_degree1
+#quiero saber ahora cuál es el nodo con mas conexiones y con menos conexiones tanto de entrada como de salida 
+#nodo con mayor in-degree
+which(in_degree1 == max(in_degree1))
+#1102 1294 1349 
+#300  394  419
+#nodo con mayor out-degree
+which(out_degree1==max(out_degree1))
+#1102 1294 1349 
+#300  394  419
+total_degree1 <- degree(graf_1_1_coladito,mode = "all")
+total_degree1
+sort(total_degree1,decreasing = TRUE)[1:10]
+#ahora el nodo con mayor grado total 
+which(total_degree1==max(total_degree1))
+#salen los mismos que arriba en las otras dos 
+#es para ver el nombre del nodo pero ya me salía, pero entiendo mejor 
+#que el 1102, 1294,1349 son los nodos /abejas que nos importan 
+#calcular el diámetro el cuál es la distancia mas larga entre dos nodos 
+diametro1 <- diameter(graf_1_1_coladito, directed = TRUE)
+print(diametro1)#tomando en cuenta los pesos de las interacciones sale 0.102263
+#si no tomamos en cuenta los pesos sería algo así:
+diametro1.1_pesos <- diameter(graf_1_1_coladito, directed = TRUE,weights = NA)
+print(diametro1.1_pesos)#sin considerar los pesos de las interacciones sale 2 
+#si no se considera el peso es solo como cuántas aristas es con la mayor cantidad de aristas que hay entre dos nodos mas lejanos 
+#y si consideramos el peso estas aristas ahora son pasos que son la suma de pasos mas larga que hay 
+#si queremos saber si hay conexión o no esta bien solo usar la no ponderada, pero cuando nos importa saber lo fuerte o costosa que es la conexión 
+#si conviene usar la ponderada
+#para calcular la densidad de la red 
+#son las conexiones que hay en comparación a las que podrían haber 
+densidad1 <- edge_density(graf_1_1_coladito)
+print(densidad1)#me da un valor de 0.952563
+
+#centraildad según que tan cerca está un nodo del resto 
+closeness_centrality1 <- closeness(graf_1_1_coladito, mode = "out",weights = NA)
+closeness_centrality1#me da el de todos
+#centralidad según cuántas veces información por un nodo 
+which(closeness_centrality1==max(closeness_centrality1))
+#1102,1294 y 1349
+betweenness_centrality1<- betweenness(graf_1_1_coladito,directed = TRUE,weights = NA)
+betweenness_centrality1
+#quiero saber cuál es el nodo que está mas cerca con el closeness
+#y con el betweenness quiero ver ahora cuál es el central según las veces q pasa info por el nodo
+which(betweenness_centrality1==max(betweenness_centrality1))
+#ahora si solo me sale uno 1986 con 830 
+#es entonces el individuo 1986 el que cumple con la intermediación de la colmena, osea que mantiene la comunicación 
+#entre todos porque mide los caminos mas cortos entre pares de nodos que pasan por un nodo dado 
+```
