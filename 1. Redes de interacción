@@ -147,3 +147,9 @@ which(betweenness_centrality1==max(betweenness_centrality1))
 #es entonces el individuo 1986 el que cumple con la intermediación de la colmena, osea que mantiene la comunicación 
 #entre todos porque mide los caminos mas cortos entre pares de nodos que pasan por un nodo dado 
 ```
+Continuando con todo esto, intentamos hacer la otra red al final del experimento pero hay que considerar que algunos días ciertas abejas no tuvieron una
+interacción con otras o murieron por lo que hay 0´s en la matriz de adyacencia que resultaba en el tiempo 15 y 29 que fueron con los que intentamos 
+Por este motivo no pudimos realizar la otra red para comparar como evolucionó 
+entonces pues lo que podemos rescatar de esto es que como mencionaba, uno de los nodos mas importantes fue la abeja con el que tenía el número 1986 que es el del betweenness mas alto 
+por lo que podemos decir que es el que relaciona a toda la colmena o la mantiene unida. Lo que estaría interesante es ver quien es, o que rol cumple esta abeja. Quizá es la reina pero no especifican 
+esto en los datos.
