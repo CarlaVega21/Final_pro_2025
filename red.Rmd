@@ -1,34 +1,116 @@
 ---
-title: "imagen de red"
-author: "Carla, cristi y Nataly"
+title: "redes"
+author: "LCCM"
 date: "2025-05-26"
 output: html_document
 ---
 
-Esta es la imagen que obtubimos de los datos de interacciones
+```{r}
 
-![El individuo mas importante es el #1986 aunque es muy densa la red y no se alcanza a ver](images/red_inter_tiempo1_tipo1.png){width="689"}
+BiocManager::install("dada2")
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+BiocManager::install("igraph")
+library(dada2)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(ShortRead)
+library(Biostrings)
+
+path <- "C:/Users/crism/Documents/proyecto final robert/proyecto final"
+setwd(path)
+list.files()
+fnFs <- sort(list.files(path, pattern = "\\.fastq\\.gz$", full.names = TRUE))
+
+
+length(fnFs)  
+head(fnFs)    
+
+
+
+
+filt_path <- file.path(path, "filtered")
+dir.create(filt_path, showWarnings = FALSE)
+filtFs <- file.path(filt_path, basename(fnFs))
+
+plotQualityProfile(fnFs[1:2])
+
+
+
+
+errF <- learnErrors(filtFs, multithread=TRUE)
+
+out <- filterAndTrim(fnFs, filtFs,
+                     truncLen=250, 
+                     maxN=0, maxEE=2, truncQ=2, 
+                     compress=TRUE, multithread=TRUE)
+print(out)
+
+dds <- dada(filtFs, err=errF, multithread=TRUE)
+
+
+seqtab <- makeSequenceTable(dds)
+
+
+seqtab.nochim <- removeBimeraDenovo(seqtab, method="consensus", multithread=TRUE)
+
+
+summary(seqtab.nochim)
+
+
+
+
+library(SpiecEasi)
+library("igraph")
+
+write.csv(seqtab.nochim,"tabla_abundancia_asv.csv")
+abund <- read.csv("tabla_abundancia_asv.csv", row.names = 1)
+abund <- as.matrix(abund)
+
+se.mb <- spiec.easi(abund, method='mb', lambda.min.ratio=1e-2, nlambda=20)
+se.mb$refit
+abund.filtrada <- abund[, colSums(abund > 0) >= 5]
+
+dim(abund.filtrada)
+str(se.mb$refit)
+
+ig <- adj2igraph(se.mb$refit$stars)
+plot(ig, vertex.label=NA, vertex.size=5, edge.width=1)
+
+degree(ig, mode=c("all"))
+
+V(ig)$name <- colnames(abund.filtrada)
+
+V(ig)$label <- V(ig)$name
+
+red <- c(plot(ig, vertex.label=NA, vertex.size=5, edge.width=1))
+
+
+
+E(ig)$weight <- 1
+
+se.gl <- spiec.easi(abund.filtrada, method = "glasso")
+omega <- as.matrix(se.gl$est$omega) 
+omega <- as.matrix(se.mb$est$omega)
+if (!requireNamespace("BiocManager", quietly = TRUE))
+  install.packages("BiocManager")
+
+BiocManager::install("RCy3")
+library(RCy3)
+
+
+friends1_edges <- read.csv("tabla_abundancia_asv.csv")
+friends1_nodes <- read.csv("tabla_abundancia_asv.csv")
+
+
+head(friends1_nodes)
+cytoscapePing()
+createNetworkFromIgraph(ig, title = "Red ASVs", collection = "Proyecto Final")
+
+
 ```
 
-## R Markdown
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r cars}
-summary(cars)
-```
-
-## Including Plots
-
-You can also embed plots, for example:
-
-```{r pressure, echo=FALSE}
-plot(pressure)
-```
-
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+Bibliografia 
+https://rpubs.com/arquez9512/613766
