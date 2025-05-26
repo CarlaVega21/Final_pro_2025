@@ -1,6 +1,15 @@
+title: "Abejas analisis con los datos del articulo influencia de edad y la del simbionte del intestino posterior commensalibacter"
+author: "LCCM"
+date: "2025-05-26"
+output: html_document
+---
+Este articulo habla de la calidad de abejas reina apis mellifera explorando la influencia de la edad y su simbionte 
+su abundancia es mayor en en reinas jovenes que en viejas y se le asocian genes expresados diferecialmente 
+e identifican interacciones complejas entre edad, microbioma y expresion genica.  se muestrean 40 reinas con criterios de colonias robustas sin signos de falla y son congeladas a -80C tras su recolecion
+se hacen analisis 
+las librerias a usar 
 
-
-BiocManager::install("DESeq2")
+```{r}
 library("DESeq2")
 library(phyloseq)
 library(microbiome)
@@ -8,18 +17,20 @@ library(tidyverse)
 library(dplyr)
 library(dplyr)
 library(tibble)
+```
 
+# se analizan las bases de datos de un articulo que esta en ncbi 
+se descargna las bases de datos que son libre y se realizan 
 
-comme_counts <- read.table("GSE286382_rawreads_aligned_to_apis.txt/GSE286382_rawreads_aligned_to_apis1.txt", 
-                           header = TRUE, row.names = 1, sep = "\t")
-
-readLines("GSE286382_rawreads_aligned_to_apis.txt/GSE286382_rawreads_aligned_to_apis1.txt", n = 10)
-
+la lectura de los datos ver que se tiene en esta carpera y se ve lo que son las primera lineas  
+```{r}
 header_line <- readLines("GSE286382_rawreads_aligned_to_apis.txt/GSE286382_rawreads_aligned_to_apis1.txt", n = 1)
 header <- strsplit(header_line, "\t")[[1]]
+```
+se ven los nombres de cada columna   los datos que tienen lo que es clas y se ve de que esta conformada 
+se lee el archivo y se les asignan los nombres que necesito 
 
-
-
+```{r}
 meta_cols <- grep("^#CLASS:", header)
 raw_data <- read.table("GSE286382_rawreads_aligned_to_apis.txt/GSE286382_rawreads_aligned_to_apis1.txt",
                        sep = "\t", header = FALSE, skip = 1, fill = TRUE, quote = "", comment.char = "")
@@ -27,8 +38,13 @@ raw_data <- read.table("GSE286382_rawreads_aligned_to_apis.txt/GSE286382_rawread
 
 
 colnames(raw_data) <- header
+```
 
-metadata <- raw_data[ , 1:(length(meta_cols) + 1)]  # +1 por "Sample"
+se realiza la metadata que son pues lo datos de expresion genetica y se hace la matrix que sea una mumerica para que se puedan meter las columnas y filas, se elimina clas para solo quedarnos con AGE y CARB para hacerlo mas facil
+se ponen los genes como filas y las columnas son las muestras 
+
+```{r}
+metadata <- raw_data[ , 1:(length(meta_cols) + 1)] 
 expr_data <- raw_data[ , -(1:(length(meta_cols) + 1))]
 
 dim(expr_data)
@@ -38,21 +54,11 @@ head(expr_data[ , 1:5])
 expr_matrix <- as.matrix(sapply(expr_data, as.numeric))
 rownames(expr_matrix) <- metadata$Sample
 
-colnames(metadata) <- gsub("#CLASS:", "", colnames(metadata))  # elimina "#CLASS:"
-colnames(metadata) <- make.names(colnames(metadata))  # hace nombres válidos en R
+colnames(metadata) <- gsub("#CLASS:", "", colnames(metadata))  
+colnames(metadata) <- make.names(colnames(metadata))  
 colnames(metadata)
 class(metadata)
 metadata <- as.data.frame(metadata)
-
-
-
-
-meta_selected <- metadata_df %>%
-  dplyr::select(Sample, Age, Carb)
-
-sample_metadata <- column_to_rownames(meta_selected, var = "Sample")
-
-head(sample_metadata)
 
 dim(expr_matrix)
 
@@ -62,26 +68,14 @@ head(colnames(expr_matrix))
 
 
 expr_matrix_t <- t(expr_matrix)
+```
+w3 hqd3 3l data con las variables que es la edad que presentan en este caso jovenes y viejas y carb que es la abundancia de C.melissae 
 
+y se hace el deseq2 que se va ca a poner un valor ajusta de 0.05 para que se filtren a los que son significativamente expresados de manera diferencial
+
+```{r}
 library(DESeq2)
-colnames(sample_metadata)
 
-
-all(rownames(sample_metadata) %in% colnames(expr_matrix_t))
-all(colnames(expr_matrix_t) %in% rownames(sample_metadata))
-head(rownames(sample_metadata))
-head(colnames(expr_matrix_t))
-
-print(colnames(sample_metadata))
-
-# Ver filas metadata
-print(rownames(sample_metadata))
-
-print(colnames(expr_matrix_t))
-
-# Ver dimensiones
-print(dim(sample_metadata))
-print(dim(expr_matrix_t))
 
 metadata_df <- as.data.frame(metadata)
 
@@ -102,7 +96,11 @@ head(resOrdered)
 
 resSig <- subset(resOrdered, padj < 0.05)
 head(resSig)
+```
 
+todo esto se visualiza con un un volcano plot  donde el c es el log2 magnitud del camnio 
+y el Y es la significancia estadistica la linea roja o representa el umbral que se eligio de 0.05 
+```{r}
 library(ggplot2)
 res_df <- as.data.frame(res)
 
@@ -112,3 +110,111 @@ ggplot(res_df, aes(x = log2FoldChange, y = -log10(padj))) +
   geom_hline(yintercept = -log10(0.05), color = "red", linetype = "dashed") +
   labs(title = "Volcano plot", x = "log2 Fold Change (Carb)", y = "-log10(padj)")
 
+
+
+```
+
+Se tiene estos dato y se obto por hacer un pheatmap 
+se normalizan lo que son los datos y se ponen lo nombres de los genes que se analizaron, incluyen lo que es el carb y age, para se rsu relacion con los patrones de expresion  donde se tienen los filtrados significativos  el mapa de colo nosda el color rojo para los de altos expresion positivos, los de azul intenso vaja expresion negativos y los de vlanco casi 0
+en cuanto a la edad  joven y viejo en magenta indican su edad y la de carb es la abundancia de C.melissae en cual muestra tonos mas obscuros en la abundancia 
+como se ve en este se hace una agrupacion de acuerdo a que tan cercanos son los genes 
+se puede ver que las que son mas viejas presentan mas a carb que las que son jovenes en expresiones significativas 
+
+
+
+```{r}
+library(pheatmap)
+norm_counts <- counts(dds, normalized = TRUE)
+sig_genes <- rownames(resSig)
+norm_counts_sig <- norm_counts[sig_genes, , drop = FALSE]
+scaled_counts <- t(scale(t(norm_counts_sig)))
+annotation_col <- sample_metadata[, c("Age", "Carb"), drop = FALSE]
+
+pheatmap(scaled_counts,
+         annotation_col = annotation_col, 
+         cluster_rows = TRUE,           
+         cluster_cols = TRUE,            
+         show_rownames = FALSE,           
+         show_colnames = TRUE,           
+         main = "Heatmap of Differentially Expressed Genes (padj < 0.05)",
+         color = colorRampPalette(c("blue", "white", "red"))(50),  
+         scale = "row",                 
+         fontsize = 10)
+```
+
+
+Ahora dada2  se utiliso para ver la calidad de las secuencias que son 42 
+el cycle representa la posicion de los nucleotidos  de 0 a 3000
+y el quality ya es el de calidad y la probabilidad de error que esta de 0 a 75
+puntajes por deaj de 0 son de baja calidad 
+cada lina indica la calidad 
+verde alta calidad 
+natanja media y rojo baja calidad 
+
+
+```{r}
+if (!requireNamespace("BiocManager", quietly = TRUE))
+  install.packages("BiocManager")
+
+BiocManager::install("dada2")
+library(dada2)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(ShortRead)
+library(Biostrings)
+
+path <- "C:/Users/crism/Documents/proyecto final robert/proyecto final"
+setwd(path)
+list.files()
+fnFs <- sort(list.files(path, pattern = "\\.fastq\\.gz$", full.names = TRUE))
+
+
+length(fnFs)  
+head(fnFs)    
+
+
+
+
+filt_path <- file.path(path, "filtered")
+dir.create(filt_path, showWarnings = FALSE)
+filtFs <- file.path(filt_path, basename(fnFs))
+
+plotQualityProfile(fnFs[1:2])
+out <- filterAndTrim(fnFs, filtFs,
+                     truncLen=250, 
+                     maxN=0, maxEE=2, truncQ=2, 
+                     compress=TRUE, multithread=TRUE)
+
+
+
+errF <- learnErrors(filtFs, multithread=TRUE)
+
+
+dds <- dada(filtFs, err=errF, multithread=TRUE)
+
+
+seqtab <- makeSequenceTable(dds)
+
+
+seqtab.nochim <- removeBimeraDenovo(seqtab, method="consensus", multithread=TRUE)
+
+
+summary(seqtab.nochim)
+
+
+
+
+```
+
+
+
+
+Bibliografia 
+paginas consultadas 
+
+https://www.rdocumentation.org/packages/pheatmap/versions/1.0.12/topics/pheatmap
+https://benjjneb.github.io/dada2/tutorial.html
+https://lashlock.github.io/compbio/R_presentation.html
+
+https://github.com/thelovelab/DESeq2
